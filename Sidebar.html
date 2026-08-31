@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 16px;
+      color: #222;
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #222;
+    }
+
+    label {
+      display: block;
+      margin-top: 14px;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    select,
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 9px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    input[readonly] {
+      background: #f3f3f3;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 18px;
+      padding: 11px;
+      border: none;
+      border-radius: 5px;
+      background: #777;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #555;
+    }
+
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    .summary {
+      margin-top: 18px;
+      padding: 12px;
+      background: #f7f7f7;
+      border-radius: 6px;
+      line-height: 1.7;
+    }
+
+    .status {
+      margin-top: 8px;
+      font-weight: bold;
+    }
+
+    .ok {
+      color: green;
+    }
+
+    .over {
+      color: red;
+    }
+
+    .error {
+      margin-top: 14px;
+      padding: 10px;
+      background: #ffe5e5;
+      color: #c00;
+      border-radius: 5px;
+      display: none;
+    }
+
+    .success {
+      margin-top: 14px;
+      padding: 10px;
+      background: #e5f7e5;
+      color: green;
+      border-radius: 5px;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>💰 TalentEase Cost Tracker</h2>
+
+  <label>Month</label>
+  <select id="month" onchange="loadEmployees()">
+    <option value="">Loading months...</option>
+  </select>
+
+  <label>Employee</label>
+  <select id="employee" onchange="loadSalary()">
+    <option value="">Select employee...</option>
+  </select>
+
+  <label>Total Payable Salary</label>
+  <input
+    id="salary"
+    type="text"
+    readonly
+    placeholder="Automatically pulled from salary register"
+  >
+
+  <label>Client</label>
+  <select id="client" onchange="updateBudget()">
+    <option value="">Select client</option>
+  </select>
+
+  <label>Category</label>
+  <select id="category">
+    <option value="FT">FT</option>
+    <option value="OT">OT</option>
+  </select>
+
+  <label>Allocation %</label>
+  <input
+    id="allocation"
+    type="number"
+    min="1"
+    max="100"
+    placeholder="e.g. 50"
+    oninput="calculateCost()"
+  >
+
+  <label>Allocated Cost</label>
+  <input
+    id="allocatedCost"
+    type="text"
+    readonly
+    placeholder="Automatically calculated"
+  >
+
+  <div class="summary">
+
+    <div>
+      <strong>Client Budget:</strong>
+      ₹<span id="budget">0.00</span>
+    </div>
+
+    <div>
+      <strong>Monthly Spend:</strong>
+      ₹<span id="spend">0.00</span>
+    </div>
+
+    <div>
+      <strong>Budget Used:</strong>
+      <span id="percentage">0.00%</span>
+    </div>
+
+    <div>
+      <strong>Remaining:</strong>
+      ₹<span id="remaining">0.00</span>
+    </div>
+
+    <div class="status" id="status">
+      🟢 OK
+    </div>
+
+  </div>
+
+  <button id="submitButton" onclick="submitEntry()">
+    Submit Entry
+  </button>
+
+  <div id="error" class="error"></div>
+  <div id="success" class="success"></div>
+
+
+<script>
+
+  let currentSalary = 0;
+  let currentBudget = 0;
+
+
+  /*************** START ***************/
+
+  window.onload = function() {
+    loadInitialData();
+  };
+
+
+  /*************** LOAD MONTHS + CLIENTS ***************/
+
+  function loadInitialData() {
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+
+        const monthSelect = document.getElementById('month');
+        const clientSelect = document.getElementById('client');
+
+        monthSelect.innerHTML =
+          '<option value="">Select month</option>';
+
+        data.months.forEach(function(month) {
+
+          const option = document.createElement('option');
+
+          option.value = month;
+          option.textContent = month;
+
+          monthSelect.appendChild(option);
+
+        });
+
+
+        clientSelect.innerHTML =
+          '<option value="">Select client</option>';
+
+        data.clients.forEach(function(client) {
+
+          const option = document.createElement('option');
+
+          option.value = client;
+          option.textContent = client;
+
+          clientSelect.appendChild(option);
+
+        });
+
+      })
+      .withFailureHandler(showError)
+      .getInitialData();
+
+  }
+
+
+  /*************** LOAD EMPLOYEES ***************/
+
+  function loadEmployees() {
+
+    const month =
+      document.getElementById('month').value;
+
+    const employeeSelect =
+      document.getElementById('employee');
+
+    employeeSelect.innerHTML =
+      '<option value="">Loading employees...</option>';
+
+    document.getElementById('salary').value = '';
+
+    currentSalary = 0;
+
+    if (!month) {
+      employeeSelect.innerHTML =
+        '<option value="">Select employee...</option>';
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(employees) {
+
+        employeeSelect.innerHTML =
+          '<option value="">Select employee...</option>';
+
+        employees.forEach(function(employee) {
+
+          const option =
+            document.createElement('option');
+
+          option.value = employee;
+          option.textContent = employee;
+
+          employeeSelect.appendChild(option);
+
+        });
+
+      })
+      .withFailureHandler(showError)
+      .getEmployees(month);
+
+  }
+
+
+  /*************** LOAD SALARY ***************/
+
+  function loadSalary() {
+
+    const month =
+      document.getElementById('month').value;
+
+    const employee =
+      document.getElementById('employee').value;
+
+    if (!month || !employee) {
+      currentSalary = 0;
+      document.getElementById('salary').value = '';
+      calculateCost();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(salary) {
+
+        currentSalary = Number(salary) || 0;
+
+        document.getElementById('salary').value =
+          formatMoney(currentSalary);
+
+        calculateCost();
+
+      })
+      .withFailureHandler(showError)
+      .getEmployeeSalary(month, employee);
+
+  }
+
+
+  /*************** CLIENT BUDGET ***************/
+
+  function updateBudget() {
+
+    const client =
+      document.getElementById('client').value;
+
+    if (!client) {
+      currentBudget = 0;
+      updateSummary({
+        budget: 0,
+        monthlySpend: 0,
+        remaining: 0,
+        percentageUsed: 0,
+        overBudget: false
+      });
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(budget) {
+
+        currentBudget = Number(budget) || 0;
+
+        document.getElementById('budget').textContent =
+          formatMoney(currentBudget);
+
+        loadCurrentSummary();
+
+      })
+      .withFailureHandler(showError)
+      .getClientBudget(client);
+
+  }
+
+
+  /*************** CALCULATE ALLOCATED COST ***************/
+
+  function calculateCost() {
+
+    const allocation =
+      Number(document.getElementById('allocation').value) || 0;
+
+    const allocated =
+      currentSalary * allocation / 100;
+
+    document.getElementById('allocatedCost').value =
+      formatMoney(allocated);
+
+  }
+
+
+  /*************** CURRENT SUMMARY ***************/
+
+  function loadCurrentSummary() {
+
+    const month =
+      document.getElementById('month').value;
+
+    const client =
+      document.getElementById('client').value;
+
+    if (!month || !client) {
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(updateSummary)
+      .withFailureHandler(showError)
+      .getClientSummary(month, client);
+
+  }
+
+
+  /*************** UPDATE SUMMARY ***************/
+
+  function updateSummary(summary) {
+
+    document.getElementById('budget').textContent =
+      formatMoney(summary.budget);
+
+    document.getElementById('spend').textContent =
+      formatMoney(summary.monthlySpend);
+
+    document.getElementById('percentage').textContent =
+      Number(summary.percentageUsed).toFixed(2) + '%';
+
+    document.getElementById('remaining').textContent =
+      formatMoney(summary.remaining);
+
+    const status =
+      document.getElementById('status');
+
+    if (summary.overBudget) {
+
+      status.textContent =
+        '🔴 OVER BUDGET';
+
+      status.className =
+        'status over';
+
+    } else {
+
+      status.textContent =
+        '🟢 OK';
+
+      status.className =
+        'status ok';
+
+    }
+
+  }
+
+
+  /*************** SUBMIT ***************/
+
+  function submitEntry() {
+
+    hideMessages();
+
+    const button =
+      document.getElementById('submitButton');
+
+    const entry = {
+
+      month:
+        document.getElementById('month').value,
+
+      employee:
+        document.getElementById('employee').value,
+
+      client:
+        document.getElementById('client').value,
+
+      category:
+        document.getElementById('category').value,
+
+      allocation:
+        document.getElementById('allocation').value
+
+    };
+
+
+    if (!entry.month) {
+      showError('Please select a month.');
+      return;
+    }
+
+    if (!entry.employee) {
+      showError('Please select an employee.');
+      return;
+    }
+
+    if (!entry.client) {
+      showError('Please select a client.');
+      return;
+    }
+
+    if (!entry.allocation) {
+      showError('Please enter an allocation percentage.');
+      return;
+    }
+
+
+    button.disabled = true;
+    button.textContent = 'Submitting...';
+
+
+    google.script.run
+      .withSuccessHandler(function(summary) {
+
+        updateSummary(summary);
+
+        showSuccess(
+          'Entry submitted successfully.'
+        );
+
+        button.disabled = false;
+        button.textContent = 'Submit Entry';
+
+        document.getElementById('allocation').value = '';
+
+        calculateCost();
+
+      })
+      .withFailureHandler(function(error) {
+
+        showError(error.message || error);
+
+        button.disabled = false;
+        button.textContent = 'Submit Entry';
+
+      })
+      .submitEntry(entry);
+
+  }
+
+
+  /*************** FORMATTING ***************/
+
+  function formatMoney(value) {
+
+    return Number(value || 0).toLocaleString(
+      'en-IN',
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }
+    );
+
+  }
+
+
+  /*************** MESSAGES ***************/
+
+  function showError(message) {
+
+    const box =
+      document.getElementById('error');
+
+    box.textContent =
+      '⚠️ ' + message;
+
+    box.style.display = 'block';
+
+  }
+
+
+  function showSuccess(message) {
+
+    const box =
+      document.getElementById('success');
+
+    box.textContent =
+      '✅ ' + message;
+
+    box.style.display = 'block';
+
+  }
+
+
+  function hideMessages() {
+
+    document.getElementById('error')
+      .style.display = 'none';
+
+    document.getElementById('success')
+      .style.display = 'none';
+
+  }
+
+</script>
+
+</body>
+</html>
