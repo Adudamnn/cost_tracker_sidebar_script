@@ -4,14 +4,13 @@ A Google Apps Script-based cost tracking sidebar designed to make expense entry 
 
 About the Project
 
-TalentEase Cost Tracker provides a sidebar interface connected to Google Sheets. It allows users to enter and manage cost-related information without having to work directly inside the spreadsheet.
+Cost Tracker sidebar provides a sidebar interface connected to Google Sheets. It allows users to enter and manage cost-related information without having to work directly inside the spreadsheet.
 
 Features
 
 - Add cost/expense entries
 - User-friendly sidebar interface
 - Google Sheets integration
-- Simple and lightweight design
 - Easy to manage and update
 
 Technologies Used
